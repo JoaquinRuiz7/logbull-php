@@ -29,6 +29,11 @@ class LaravelHandler
         $apiKey = $config['api_key'] ?? null;
         $level = $config['level'] ?? 'info';
         
+        // Convert empty string API key to null
+        if ($apiKey === '' || (is_string($apiKey) && strlen($apiKey) < 10)) {
+            $apiKey = null;
+        }
+        
         // Convert string level to Monolog Level enum
         $monologLevel = $this->parseLevel($level);
         

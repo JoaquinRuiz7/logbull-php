@@ -40,7 +40,9 @@ class Sender
         
         $this->multiHandle = curl_multi_init();
         if ($this->multiHandle !== false) {
-            curl_multi_setopt($this->multiHandle, CURLMOPT_PIPELINING, 1);
+            // Note: CURLPIPE_HTTP1 (value 1) is deprecated in PHP 8.4+
+            // Pipelining is optional for performance, skip if not supported
+            @curl_multi_setopt($this->multiHandle, CURLMOPT_PIPELINING, 1);
         }
     }
 
