@@ -18,6 +18,7 @@ A PHP library for sending logs to [LogBull](https://github.com/logbull/logbull) 
   - [1. Standalone LogBullLogger](#1-standalone-logbulllogger)
   - [2. Monolog Integration](#2-monolog-integration)
   - [3. PSR-3 Logger](#3-psr-3-logger)
+  - [4. Laravel Integration](#4-laravel-integration)
 - [Configuration Options](#configuration-options)
 - [API Reference](#api-reference)
 - [Timestamp Precision](#timestamp-precision)
@@ -26,7 +27,7 @@ A PHP library for sending logs to [LogBull](https://github.com/logbull/logbull) 
 
 ## Features
 
-- **Multiple integration options**: Standalone logger, Monolog handler, and PSR-3 wrapper
+- **Multiple integration options**: Standalone logger, Monolog handler, PSR-3 wrapper, and Laravel channel
 - **Context support**: Attach persistent context to logs (session_id, user_id, etc.)
 - **Asynchronous sending**: Non-blocking HTTP requests using curl_multi
 - **Zero dependencies**: No production dependencies required
@@ -221,6 +222,104 @@ $logger->error('Database error', [
 // Ensure all logs are sent before exiting
 $logger->flush();
 sleep(2);
+```
+
+### 4. Laravel Integration
+
+LogBull integrates seamlessly with Laravel's logging system through a custom log channel.
+
+#### Configuration
+
+Add LogBull as a custom channel in `config/logging.php`:
+
+```php
+'channels' => [
+    'logbull' => [
+        'driver' => 'custom',
+        'via' => \LogBull\Handlers\LaravelHandler::class,
+        'project_id' => env('LOGBULL_PROJECT_ID'),
+        'host' => env('LOGBULL_HOST'),
+        'api_key' => env('LOGBULL_API_KEY'), // optional
+        'level' => env('LOG_LEVEL', 'info'),
+    ],
+],
+```
+
+Add to your `.env`:
+
+```
+LOGBULL_PROJECT_ID=your-project-id-here
+LOGBULL_HOST=http://localhost:4005
+LOGBULL_API_KEY=your-api-key-here
+```
+
+#### Usage
+
+```php
+<?php
+
+use Illuminate\Support\Facades\Log;
+
+// Use the logbull channel directly
+Log::channel('logbull')->info('User logged in', [
+    'user_id' => auth()->id(),
+    'ip' => request()->ip()
+]);
+
+// Set as default channel in .env
+LOG_CHANNEL=logbull
+
+// Then use standard Log facade
+Log::info('Order created', [
+    'order_id' => $order->id,
+    'total' => $order->total
+]);
+```
+
+#### Using Stack Driver
+
+You can combine LogBull with other log channels using Laravel's stack driver:
+
+```php
+'channels' => [
+    'stack' => [
+        'driver' => 'stack',
+        'channels' => ['single', 'logbull'],
+        'ignore_exceptions' => false,
+    ],
+],
+```
+
+This allows you to simultaneously log to your local files and send logs to LogBull.
+
+#### In Controllers
+
+```php
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Support\Facades\Log;
+
+class OrderController extends Controller
+{
+    public function store(Request $request)
+    {
+        Log::channel('logbull')->info('Order processing started', [
+            'user_id' => $request->user()->id,
+            'cart_total' => $request->input('total')
+        ]);
+
+        // Process order...
+
+        Log::channel('logbull')->info('Order completed', [
+            'order_id' => $order->id,
+            'amount' => $order->total
+        ]);
+
+        return response()->json(['order' => $order]);
+    }
+}
 ```
 
 ## Configuration Options
