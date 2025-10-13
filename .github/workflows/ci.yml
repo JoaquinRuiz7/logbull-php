@@ -1,65 +1,65 @@
 name: CI
 
 on:
-    push:
-        branches: [main, master, develop]
-    pull_request:
-        branches: [main, master]
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master]
 
 jobs:
-    test:
-        name: Test
-        runs-on: ubuntu-latest
-        strategy:
-            matrix:
-                php-version: ["8.0", "8.1", "8.2", "8.3"]
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php-version: ["8.1", "8.2", "8.3"]
 
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v4
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-            - name: Set up PHP
-              uses: shivammathur/setup-php@v2
-              with:
-                  php-version: ${{ matrix.php-version }}
-                  extensions: curl, json
-                  coverage: xdebug
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          extensions: curl, json
+          coverage: xdebug
 
-            - name: Validate composer.json and composer.lock
-              run: composer validate --strict
+      - name: Validate composer.json and composer.lock
+        run: composer validate --strict
 
-            - name: Install dependencies
-              run: composer install --prefer-dist --no-progress
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress
 
-            - name: Run tests
-              run: vendor/bin/phpunit --testdox --coverage-clover=coverage.xml
+      - name: Run tests
+        run: vendor/bin/phpunit --testdox --coverage-clover=coverage.xml
 
-            - name: Upload coverage
-              uses: codecov/codecov-action@v4
-              with:
-                  files: ./coverage.xml
-                  flags: unittests
-                  name: codecov-umbrella
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
 
-    lint:
-        name: Lint
-        runs-on: ubuntu-latest
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
 
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v4
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-            - name: Set up PHP
-              uses: shivammathur/setup-php@v2
-              with:
-                  php-version: "8.3"
-                  extensions: curl, json
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: curl, json
 
-            - name: Install dependencies
-              run: composer install --prefer-dist --no-progress
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress
 
-            - name: Check code style
-              run: |
-                  composer exec -- phpunit --version
-                  php -l src/
-                  php -l tests/
+      - name: Check code style
+        run: |
+          composer exec -- phpunit --version
+          php -l src/
+          php -l tests/
