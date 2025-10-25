@@ -62,9 +62,10 @@ $logger->info('User logged in successfully', [
     'ip' => '192.168.1.100'
 ]);
 
-// Ensure all logs are sent before exiting
+// We need to wait a bit in short-living scripts when logs
+// received by Log Bull. This is not needed in production
 $logger->flush();
-sleep(2);
+sleep(3);
 ```
 
 ## Usage Examples
@@ -110,9 +111,10 @@ $sessionLogger->info('Processing user request', [
     'amount' => 99.99
 ]);
 
-// Ensure all logs are sent before exiting
+// We need to wait a bit in short-living scripts when logs
+// received by Log Bull. This is not needed in production
 $logger->flush();
-sleep(2);
+sleep(3);
 ```
 
 #### Context Management
@@ -150,6 +152,11 @@ $transactionLogger->info('Transaction completed', [
     'currency' => 'USD'
 ]);
 // Includes all previous context + new transaction context
+
+// We need to wait a bit in short-living scripts when logs
+// received by Log Bull. This is not needed in production
+$logger->flush();
+sleep(3);
 ```
 
 ### 2. Monolog Integration
@@ -185,9 +192,10 @@ $logger->error('Payment failed', [
     'currency' => 'USD'
 ]);
 
-// Ensure all logs are sent before exiting
+// We need to wait a bit in short-living scripts when logs
+// received by Log Bull. This is not needed in production
 $handler->flush();
-sleep(2);
+sleep(3);
 ```
 
 ### 3. PSR-3 Logger
@@ -219,9 +227,10 @@ $logger->error('Database error', [
     'error' => 'Connection timeout'
 ]);
 
-// Ensure all logs are sent before exiting
+// We need to wait a bit in short-living scripts when logs
+// received by Log Bull. This is not needed in production
 $logger->flush();
-sleep(2);
+sleep(3);
 ```
 
 ### 4. Laravel Integration

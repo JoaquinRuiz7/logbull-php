@@ -18,28 +18,39 @@ use Monolog\LogRecord;
  */
 class MonologHandler extends AbstractProcessingHandler
 {
-    private Sender $sender;
+    private ?Sender $sender;
 
     /**
      * @param int|string|Level $level The minimum logging level at which this handler will be triggered
      */
     public function __construct(
-        string $projectId,
-        string $host,
+        ?string $projectId = null,
+        ?string $host = null,
         ?string $apiKey = null,
         int|string|Level $level = Level::Info
     ) {
         parent::__construct($level);
 
-        // Trim and validate configuration
-        $projectId = trim($projectId);
-        $host = trim($host);
+        // Trim configuration
+        $projectId = $projectId !== null ? trim($projectId) : null;
+        $host = $host !== null ? trim($host) : null;
         $apiKey = $apiKey !== null ? trim($apiKey) : null;
 
+        // Check if credentials are provided
+        if ($projectId === null || $projectId === '' || 
+            $host === null || $host === '') {
+            // No credentials: do nothing (Monolog will print)
+            echo "LogBull: No credentials provided for MonologHandler. " .
+                 "Handler is disabled. Logs will not be sent to LogBull server.\n";
+            $this->sender = null;
+            return;
+        }
+
+        // Validate configuration
         Validation::validateProjectId($projectId);
         Validation::validateHostUrl($host);
 
-        if ($apiKey !== null) {
+        if ($apiKey !== null && $apiKey !== '') {
             Validation::validateApiKey($apiKey);
         }
 
@@ -51,6 +62,11 @@ class MonologHandler extends AbstractProcessingHandler
      */
     protected function write(LogRecord $record): void
     {
+        // If handler is disabled, do nothing
+        if ($this->sender === null) {
+            return;
+        }
+
         try {
             // Convert Monolog level to LogBull level
             $level = $this->convertMonologLevel($record->level);
@@ -81,7 +97,9 @@ class MonologHandler extends AbstractProcessingHandler
      */
     public function flush(): void
     {
-        $this->sender->flush();
+        if ($this->sender !== null) {
+            $this->sender->flush();
+        }
     }
 
     /**
@@ -89,7 +107,9 @@ class MonologHandler extends AbstractProcessingHandler
      */
     public function close(): void
     {
-        $this->sender->shutdown();
+        if ($this->sender !== null) {
+            $this->sender->shutdown();
+        }
         parent::close();
     }
 

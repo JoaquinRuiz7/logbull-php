@@ -18,8 +18,8 @@ class PSR3Logger implements LoggerInterface
     private LogBullLogger $logger;
 
     public function __construct(
-        string $projectId,
-        string $host,
+        ?string $projectId = null,
+        ?string $host = null,
         ?string $apiKey = null,
         string $logLevel = Types::INFO
     ) {

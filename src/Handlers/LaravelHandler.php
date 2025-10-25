@@ -29,6 +29,13 @@ class LaravelHandler
         $apiKey = $config['api_key'] ?? null;
         $level = $config['level'] ?? 'info';
         
+        // Validate required configuration
+        if (empty($projectId) || empty($host)) {
+            throw new \InvalidArgumentException(
+                'LogBull Laravel handler requires "project_id" and "host" configuration values'
+            );
+        }
+        
         // Convert empty string API key to null
         if ($apiKey === '' || (is_string($apiKey) && strlen($apiKey) < 10)) {
             $apiKey = null;

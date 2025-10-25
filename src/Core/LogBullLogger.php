@@ -13,37 +13,30 @@ use LogBull\Internal\Formatting;
  */
 class LogBullLogger
 {
-    private string $projectId;
-    private string $host;
+    private ?string $projectId;
+    private ?string $host;
     private ?string $apiKey;
     private string $minLevel;
     
     /** @var array<string, mixed> */
     private array $context;
     
-    private Sender $sender;
+    private ?Sender $sender;
 
     /**
      * @param array<string, mixed> $context
      */
     public function __construct(
-        string $projectId,
-        string $host,
+        ?string $projectId = null,
+        ?string $host = null,
         ?string $apiKey = null,
         string $logLevel = Types::INFO,
         array $context = []
     ) {
-        // Trim and validate configuration
-        $this->projectId = trim($projectId);
-        $this->host = trim($host);
+        // Trim configuration
+        $this->projectId = $projectId !== null ? trim($projectId) : null;
+        $this->host = $host !== null ? trim($host) : null;
         $this->apiKey = $apiKey !== null ? trim($apiKey) : null;
-
-        Validation::validateProjectId($this->projectId);
-        Validation::validateHostUrl($this->host);
-
-        if ($this->apiKey !== null) {
-            Validation::validateApiKey($this->apiKey);
-        }
 
         // Normalize and validate log level
         $this->minLevel = Types::normalizeLevel($logLevel);
@@ -52,6 +45,25 @@ class LogBullLogger
         }
 
         $this->context = $context;
+
+        // Check if credentials are provided
+        if ($this->projectId === null || $this->projectId === '' || 
+            $this->host === null || $this->host === '') {
+            // Console-only mode: no credentials provided
+            echo "LogBull: No credentials provided. Running in console-only mode. " .
+                 "Logs will only be printed to the console and not sent to LogBull server.\n";
+            $this->sender = null;
+            return;
+        }
+
+        // Validate configuration
+        Validation::validateProjectId($this->projectId);
+        Validation::validateHostUrl($this->host);
+
+        if ($this->apiKey !== null && $this->apiKey !== '') {
+            Validation::validateApiKey($this->apiKey);
+        }
+
         $this->sender = new Sender($this->projectId, $this->host, $this->apiKey);
     }
 
@@ -132,7 +144,9 @@ class LogBullLogger
      */
     public function flush(): void
     {
-        $this->sender->flush();
+        if ($this->sender !== null) {
+            $this->sender->flush();
+        }
     }
 
     /**
@@ -140,7 +154,9 @@ class LogBullLogger
      */
     public function shutdown(): void
     {
-        $this->sender->shutdown();
+        if ($this->sender !== null) {
+            $this->sender->shutdown();
+        }
     }
 
     /**
@@ -178,8 +194,10 @@ class LogBullLogger
         // Print to console
         $this->printToConsole($entry);
 
-        // Send to LogBull
-        $this->sender->addLog($entry);
+        // Only send to LogBull server if not in console-only mode
+        if ($this->sender !== null) {
+            $this->sender->addLog($entry);
+        }
     }
 
     /**
