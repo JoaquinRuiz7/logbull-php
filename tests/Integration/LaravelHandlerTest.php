@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace LogBull\Tests\Integration;
 
+use LogBull\Core\Sender;
 use LogBull\Handlers\LaravelHandler;
+use LogBull\Handlers\MonologHandler;
 use Monolog\Logger;
 use PHPUnit\Framework\TestCase;
 
@@ -140,5 +142,43 @@ class LaravelHandlerTest extends TestCase
         
         $this->assertTrue(true); // If we got here without exceptions, it works
     }
-}
 
+    public function testHandlerPassesBatchSizeAndFlushInterval(): void
+    {
+        $handler = new LaravelHandler();
+        $config = [
+            'project_id' => '12345678-1234-1234-1234-123456789012',
+            'host' => 'http://localhost:4005',
+            'batch_size' => '50',
+            'flush_interval' => '2.5',
+        ];
+
+        $sender = $this->getSender($handler($config));
+
+        $this->assertSame(50, (new \ReflectionProperty(Sender::class, 'batchSize'))->getValue($sender));
+        $this->assertSame(2.5, (new \ReflectionProperty(Sender::class, 'flushInterval'))->getValue($sender));
+    }
+
+    public function testHandlerUsesDefaultsForEmptyBatchSizeAndFlushInterval(): void
+    {
+        $handler = new LaravelHandler();
+        $config = [
+            'project_id' => '12345678-1234-1234-1234-123456789012',
+            'host' => 'http://localhost:4005',
+            'batch_size' => '',
+            'flush_interval' => null,
+        ];
+
+        $sender = $this->getSender($handler($config));
+
+        $this->assertSame(Sender::DEFAULT_BATCH_SIZE, (new \ReflectionProperty(Sender::class, 'batchSize'))->getValue($sender));
+        $this->assertNull((new \ReflectionProperty(Sender::class, 'flushInterval'))->getValue($sender));
+    }
+
+    private function getSender(Logger $logger): Sender
+    {
+        $monologHandler = $logger->getHandlers()[0];
+
+        return (new \ReflectionProperty(MonologHandler::class, 'sender'))->getValue($monologHandler);
+    }
+}

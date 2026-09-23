@@ -250,6 +250,8 @@ Add LogBull as a custom channel in `config/logging.php`:
         'host' => env('LOGBULL_HOST'),
         'api_key' => env('LOGBULL_API_KEY'), // optional
         'level' => env('LOG_LEVEL', 'info'),
+        'batch_size' => env('LOGBULL_BATCH_SIZE'), // optional, default 1000
+        'flush_interval' => env('LOGBULL_FLUSH_INTERVAL'), // optional, seconds
     ],
 ],
 ```
@@ -260,6 +262,10 @@ Add to your `.env`:
 LOGBULL_PROJECT_ID=your-project-id-here
 LOGBULL_HOST=http://localhost:4005
 LOGBULL_API_KEY=your-api-key-here
+
+# Optional, see "Batching and Long-Running Processes"
+LOGBULL_BATCH_SIZE=100
+LOGBULL_FLUSH_INTERVAL=5
 ```
 
 #### Usage
@@ -340,6 +346,27 @@ class OrderController extends Controller
 - `apiKey` (optional): API key for authentication
 - `logLevel` (optional): Minimum log level to process (default: `INFO`)
 - `context` (optional): Default context to attach to all logs
+- `batchSize` (optional): Number of queued logs that triggers a send (default: `1000`)
+- `flushInterval` (optional): Seconds after which queued logs are sent even if the batch is not full (default: `null`, disabled)
+
+`MonologHandler` and `PSR3Logger` accept the same `batchSize` and `flushInterval` parameters. In Laravel, use the `batch_size` and `flush_interval` channel options.
+
+### Batching and Long-Running Processes
+
+By default, logs are sent in batches of 1000, or when `flush()` is called or the process shuts down. That works for short-lived PHP-FPM requests, but in queue workers, Laravel Octane, Swoole or RoadRunner the process can run for hours, so logs may not show up until 1000 have piled up.
+
+Set a `flushInterval` to send queued logs once that many seconds have passed since the last send, and/or lower `batchSize`:
+
+```php
+$logger = new LogBullLogger(
+    projectId: 'your-project-id',
+    host: 'http://localhost:4005',
+    batchSize: 100,
+    flushInterval: 5.0
+);
+```
+
+The interval is checked each time a log is written, since PHP has no background timers. A log written after the interval has elapsed sends the whole pending batch, including itself. For logs to reach LogBull as soon as a job or request finishes, also call `flush()` at that point. `MonologHandler` flushes on `reset()`, which Monolog-aware frameworks call between jobs and requests.
 
 ### Available Log Levels
 

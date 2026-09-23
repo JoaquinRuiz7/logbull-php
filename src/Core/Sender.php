@@ -10,21 +10,24 @@ namespace LogBull\Core;
  */
 class Sender
 {
-    private const BATCH_SIZE = 1_000;
+    public const DEFAULT_BATCH_SIZE = 1_000;
     private const QUEUE_CAPACITY = 10_000;
     private const HTTP_TIMEOUT = 30;
 
     private string $projectId;
     private string $host;
     private ?string $apiKey;
+    private int $batchSize;
+    private ?float $flushInterval;
+    private float $lastSendTime;
     
     /** @var array<array<string, mixed>> */
     private array $logQueue = [];
     
-    /** @var resource|null */
+    /** @var \CurlMultiHandle|null */
     private $multiHandle = null;
     
-    /** @var array<int, resource> */
+    /** @var array<int, \CurlHandle> */
     private array $activeHandles = [];
     
     /** @var array<int, array<array<string, mixed>>> */
@@ -32,11 +35,32 @@ class Sender
     
     private bool $shutdown = false;
 
-    public function __construct(string $projectId, string $host, ?string $apiKey = null)
-    {
+    /**
+     * @param int $batchSize Number of queued logs that triggers a send
+     * @param float|null $flushInterval Seconds after which queued logs are sent even if the batch
+     *                                  is not full (null disables time-based sending)
+     */
+    public function __construct(
+        string $projectId,
+        string $host,
+        ?string $apiKey = null,
+        int $batchSize = self::DEFAULT_BATCH_SIZE,
+        ?float $flushInterval = null
+    ) {
+        if ($batchSize < 1) {
+            throw new \InvalidArgumentException("Batch size must be at least 1, got: $batchSize");
+        }
+
+        if ($flushInterval !== null && $flushInterval <= 0) {
+            throw new \InvalidArgumentException("Flush interval must be greater than 0, got: $flushInterval");
+        }
+
         $this->projectId = trim($projectId);
         $this->host = rtrim(trim($host), '/');
         $this->apiKey = $apiKey !== null ? trim($apiKey) : null;
+        $this->batchSize = min($batchSize, self::QUEUE_CAPACITY);
+        $this->flushInterval = $flushInterval;
+        $this->lastSendTime = microtime(true);
         
         $this->multiHandle = curl_multi_init();
         if ($this->multiHandle !== false) {
@@ -64,10 +88,19 @@ class Sender
 
         $this->logQueue[] = $entry;
 
-        // Auto-send if batch size reached
-        if (count($this->logQueue) >= self::BATCH_SIZE) {
+        // Auto-send if batch size reached or flush interval elapsed
+        if (count($this->logQueue) >= $this->batchSize || $this->isFlushIntervalElapsed()) {
             $this->sendBatch();
+        } else {
+            // Keep in-flight requests progressing in long-running processes (workers, Octane)
+            $this->processActiveRequests();
         }
+    }
+
+    private function isFlushIntervalElapsed(): bool
+    {
+        return $this->flushInterval !== null
+            && (microtime(true) - $this->lastSendTime) >= $this->flushInterval;
     }
 
     /**
@@ -75,7 +108,7 @@ class Sender
      */
     public function flush(): void
     {
-        $this->sendBatch();
+        $this->sendAllBatches();
         $this->processActiveRequests();
     }
 
@@ -91,7 +124,7 @@ class Sender
         $this->shutdown = true;
 
         // Send remaining logs
-        $this->sendBatch();
+        $this->sendAllBatches();
 
         // Wait for in-flight requests to complete (with timeout)
         $startTime = time();
@@ -120,6 +153,16 @@ class Sender
     }
 
     /**
+     * Send every queued log, split into batches
+     */
+    private function sendAllBatches(): void
+    {
+        while (!empty($this->logQueue) && $this->multiHandle !== null) {
+            $this->sendBatch();
+        }
+    }
+
+    /**
      * Send a batch of logs (fire-and-forget async)
      */
     private function sendBatch(): void
@@ -128,8 +171,10 @@ class Sender
             return;
         }
 
-        // Take up to BATCH_SIZE logs from the queue
-        $logsToSend = array_splice($this->logQueue, 0, self::BATCH_SIZE);
+        $this->lastSendTime = microtime(true);
+
+        // Take up to batch size logs from the queue
+        $logsToSend = array_splice($this->logQueue, 0, $this->batchSize);
 
         // Create curl handle for async request
         $handle = $this->createCurlHandle($logsToSend);
@@ -139,7 +184,7 @@ class Sender
         }
 
         // Add to multi handle for async execution
-        $handleId = (int)$handle;
+        $handleId = spl_object_id($handle);
         curl_multi_add_handle($this->multiHandle, $handle);
         $this->activeHandles[$handleId] = $handle;
         $this->handleLogs[$handleId] = $logsToSend;
@@ -152,7 +197,7 @@ class Sender
      * Create curl handle for HTTP request
      * 
      * @param array<array<string, mixed>> $logs
-     * @return resource|null
+     * @return \CurlHandle|null
      */
     private function createCurlHandle(array $logs)
     {
@@ -220,11 +265,11 @@ class Sender
     /**
      * Handle a completed curl request
      * 
-     * @param resource $handle
+     * @param \CurlHandle $handle
      */
     private function handleCompletedRequest($handle, int $result): void
     {
-        $handleId = (int)$handle;
+        $handleId = spl_object_id($handle);
         $sentLogs = $this->handleLogs[$handleId] ?? [];
 
         if ($result !== CURLE_OK) {

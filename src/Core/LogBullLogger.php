@@ -17,6 +17,8 @@ class LogBullLogger
     private ?string $host;
     private ?string $apiKey;
     private string $minLevel;
+    private int $batchSize;
+    private ?float $flushInterval;
     
     /** @var array<string, mixed> */
     private array $context;
@@ -25,13 +27,18 @@ class LogBullLogger
 
     /**
      * @param array<string, mixed> $context
+     * @param int $batchSize Number of queued logs that triggers a send
+     * @param float|null $flushInterval Seconds after which queued logs are sent even if the batch
+     *                                  is not full (null disables time-based sending)
      */
     public function __construct(
         ?string $projectId = null,
         ?string $host = null,
         ?string $apiKey = null,
         string $logLevel = Types::INFO,
-        array $context = []
+        array $context = [],
+        int $batchSize = Sender::DEFAULT_BATCH_SIZE,
+        ?float $flushInterval = null
     ) {
         // Trim configuration
         $this->projectId = $projectId !== null ? trim($projectId) : null;
@@ -45,6 +52,8 @@ class LogBullLogger
         }
 
         $this->context = $context;
+        $this->batchSize = $batchSize;
+        $this->flushInterval = $flushInterval;
 
         // Check if credentials are provided
         if ($this->projectId === null || $this->projectId === '' || 
@@ -64,7 +73,13 @@ class LogBullLogger
             Validation::validateApiKey($this->apiKey);
         }
 
-        $this->sender = new Sender($this->projectId, $this->host, $this->apiKey);
+        $this->sender = new Sender(
+            $this->projectId,
+            $this->host,
+            $this->apiKey,
+            $this->batchSize,
+            $this->flushInterval
+        );
     }
 
     /**
@@ -130,7 +145,9 @@ class LogBullLogger
             $this->host,
             $this->apiKey,
             $this->minLevel,
-            Formatting::mergeFields($this->context, $context)
+            Formatting::mergeFields($this->context, $context),
+            $this->batchSize,
+            $this->flushInterval
         );
         
         // Share the same sender instance

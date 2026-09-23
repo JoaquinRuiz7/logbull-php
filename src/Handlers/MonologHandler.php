@@ -22,12 +22,17 @@ class MonologHandler extends AbstractProcessingHandler
 
     /**
      * @param int|string|Level $level The minimum logging level at which this handler will be triggered
+     * @param int $batchSize Number of queued logs that triggers a send
+     * @param float|null $flushInterval Seconds after which queued logs are sent even if the batch
+     *                                  is not full (null disables time-based sending)
      */
     public function __construct(
         ?string $projectId = null,
         ?string $host = null,
         ?string $apiKey = null,
-        int|string|Level $level = Level::Info
+        int|string|Level $level = Level::Info,
+        int $batchSize = Sender::DEFAULT_BATCH_SIZE,
+        ?float $flushInterval = null
     ) {
         parent::__construct($level);
 
@@ -54,7 +59,7 @@ class MonologHandler extends AbstractProcessingHandler
             Validation::validateApiKey($apiKey);
         }
 
-        $this->sender = new Sender($projectId, $host, $apiKey);
+        $this->sender = new Sender($projectId, $host, $apiKey, $batchSize, $flushInterval);
     }
 
     /**
@@ -100,6 +105,16 @@ class MonologHandler extends AbstractProcessingHandler
         if ($this->sender !== null) {
             $this->sender->flush();
         }
+    }
+
+    /**
+     * Flush pending logs on reset, so long-running processes (queue workers, Octane)
+     * that reset Monolog between jobs/requests don't hold logs back
+     */
+    public function reset(): void
+    {
+        $this->flush();
+        parent::reset();
     }
 
     /**

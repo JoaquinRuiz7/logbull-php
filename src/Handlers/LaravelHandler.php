@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace LogBull\Handlers;
 
 use Monolog\Logger;
+use LogBull\Core\Sender;
 use Monolog\Level;
 
 /**
@@ -28,6 +29,8 @@ class LaravelHandler
         $host = $config['host'] ?? '';
         $apiKey = $config['api_key'] ?? null;
         $level = $config['level'] ?? 'info';
+        $batchSize = $this->parseBatchSize($config['batch_size'] ?? null);
+        $flushInterval = $this->parseFlushInterval($config['flush_interval'] ?? null);
         
         // Validate required configuration
         if (empty($projectId) || empty($host)) {
@@ -45,7 +48,7 @@ class LaravelHandler
         $monologLevel = $this->parseLevel($level);
         
         // Create MonologHandler instance
-        $handler = new MonologHandler($projectId, $host, $apiKey, $monologLevel);
+        $handler = new MonologHandler($projectId, $host, $apiKey, $monologLevel, $batchSize, $flushInterval);
         
         // Create and return Monolog Logger
         $logger = new Logger('logbull');
@@ -54,6 +57,30 @@ class LaravelHandler
         return $logger;
     }
     
+    /**
+     * Parse the batch size, falling back to the default when unset (e.g. empty env var)
+     */
+    private function parseBatchSize(mixed $batchSize): int
+    {
+        if ($batchSize === null || $batchSize === '') {
+            return Sender::DEFAULT_BATCH_SIZE;
+        }
+
+        return (int)$batchSize;
+    }
+
+    /**
+     * Parse the flush interval in seconds, null (disabled) when unset (e.g. empty env var)
+     */
+    private function parseFlushInterval(mixed $flushInterval): ?float
+    {
+        if ($flushInterval === null || $flushInterval === '') {
+            return null;
+        }
+
+        return (float)$flushInterval;
+    }
+
     /**
      * Parse the string log level to Monolog Level
      */

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace LogBull\Handlers;
 
 use LogBull\Core\LogBullLogger;
+use LogBull\Core\Sender;
 use LogBull\Core\Types;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
@@ -21,9 +22,11 @@ class PSR3Logger implements LoggerInterface
         ?string $projectId = null,
         ?string $host = null,
         ?string $apiKey = null,
-        string $logLevel = Types::INFO
+        string $logLevel = Types::INFO,
+        int $batchSize = Sender::DEFAULT_BATCH_SIZE,
+        ?float $flushInterval = null
     ) {
-        $this->logger = new LogBullLogger($projectId, $host, $apiKey, $logLevel);
+        $this->logger = new LogBullLogger($projectId, $host, $apiKey, $logLevel, [], $batchSize, $flushInterval);
     }
 
     /**
