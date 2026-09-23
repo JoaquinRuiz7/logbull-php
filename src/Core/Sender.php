@@ -194,15 +194,35 @@ class Sender
     }
 
     /**
+     * Encode a batch for the LogBull API
+     *
+     * Empty fields are sent as a JSON object: PHP encodes an empty array as `[]`,
+     * which the server rejects with a 400 for the whole batch (issue #1).
+     *
+     * @param array<array<string, mixed>> $logs
+     */
+    private function encodeBatch(array $logs): string
+    {
+        $logs = array_map(static function (array $log): array {
+            if (($log['fields'] ?? null) === []) {
+                $log['fields'] = new \stdClass();
+            }
+
+            return $log;
+        }, $logs);
+
+        return json_encode(['logs' => $logs], JSON_THROW_ON_ERROR);
+    }
+
+    /**
      * Create curl handle for HTTP request
-     * 
+     *
      * @param array<array<string, mixed>> $logs
      * @return \CurlHandle|null
      */
     private function createCurlHandle(array $logs)
     {
-        $batch = ['logs' => $logs];
-        $data = json_encode($batch, JSON_THROW_ON_ERROR);
+        $data = $this->encodeBatch($logs);
 
         $url = "{$this->host}/api/v1/logs/receiving/{$this->projectId}";
 

@@ -94,6 +94,34 @@ class SenderTest extends TestCase
         new Sender(self::PROJECT_ID, self::HOST, null, 1_000, 0.0);
     }
 
+    public function testEmptyFieldsAreEncodedAsJsonObject(): void
+    {
+        $sender = new Sender(self::PROJECT_ID, self::HOST);
+
+        $json = $this->encodeBatch($sender, [$this->entry(1)]);
+
+        $this->assertStringContainsString('"fields":{}', $json);
+        $this->assertStringNotContainsString('"fields":[]', $json);
+    }
+
+    public function testNonEmptyFieldsAreEncodedUnchanged(): void
+    {
+        $sender = new Sender(self::PROJECT_ID, self::HOST);
+        $entry = array_merge($this->entry(1), ['fields' => ['user_id' => 42, 'tags' => ['a', 'b']]]);
+
+        $decoded = json_decode($this->encodeBatch($sender, [$entry]), true);
+
+        $this->assertSame(['user_id' => 42, 'tags' => ['a', 'b']], $decoded['logs'][0]['fields']);
+    }
+
+    /**
+     * @param array<array<string, mixed>> $logs
+     */
+    private function encodeBatch(Sender $sender, array $logs): string
+    {
+        return (new \ReflectionMethod(Sender::class, 'encodeBatch'))->invoke($sender, $logs);
+    }
+
     /**
      * @return array<string, mixed>
      */
